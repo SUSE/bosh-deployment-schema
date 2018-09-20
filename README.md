@@ -8,7 +8,8 @@ It can be used for validation, as well as documentation and code generation.
 
 ## Example Validation CLI
 
-     ./oas3-validate openapi.yml manifest.yml
+     go build
+     ./bosh-deployment-schema openapi.yml manifest.yml
 
 ## Issues
 
