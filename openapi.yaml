@@ -1,0 +1,577 @@
+openapi: "3.0.0"
+info:
+  version: "v2.0.0"
+  title: "BOSH Deployment Manifest"
+  license:
+    name: Apache 2.0
+  contact:
+    name: CF Containerization Team
+tags:
+  - name: BOSH
+externalDocs:
+  description: Official documentation
+  url: https://bosh.io/docs
+paths: {}
+
+components:
+  schemas:
+    DeploymentManifest:
+      required:
+      - name
+      - releases
+      properties:
+        name:
+          type: string
+          description: >
+            The name of the deployment. A single Director can manage multiple
+            deployments and distinguishes them by name.
+        director_uuid:
+          type: string
+          description: >
+            Not required by CLI v2.
+            This string must match the UUID of the currently targeted
+            Director for the CLI to allow any operations on the deployment. Use
+            bosh status to display the UUID of the currently targeted Director.
+        features:
+          $ref: "#/components/schemas/Feature"
+        releases:
+          type: array
+          items:
+            $ref: "#/components/schemas/Release"
+          description: >
+            The name and version of each release in the deployment.
+          example:
+            releases:
+            - name: redis
+              version: 12
+            - name: concourse
+              version: 3.3.2
+              url: https://bosh.io/d/github.com/concourse/concourse?v=3.3.2
+              sha1: 2c876303dc6866afb845e728eab58abae8ff3be2
+        stemcells:
+          type: array
+          items:
+            $ref: "#/components/schemas/Stemcell"
+          description:
+            The `url` key is not supported in stemcells block because there is no single stemcell that works on all IaaSes. Since we want to keep deployment manifests decoupled from any cloud specific declarations we do not allow specifying URL.
+          example:
+            stemcells:
+            - alias: default
+              os: ubuntu-trusty
+              version: 3147
+            - alias: default2
+              name: bosh-aws-xen-hvm-ubuntu-trusty-go_agent
+              version: 3149
+        update:
+          $ref: "#/components/schemas/Update"
+        instance_groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/InstanceGroup"
+          description: >
+            Specifies the mapping between release [jobs](https://bosh.io/docs/terminology.md#job) and instance groups.
+          example:
+            instance_groups:
+            - name: redis-master
+              instances: 1
+              azs: [z1, z2]
+              jobs:
+              - name: redis-server
+                release: redis
+                properties:
+                  port: 3606
+              vm_type: medium
+              vm_extensions: [public-lbs]
+              stemcell: default
+              persistent_disk_type: medium
+              networks:
+              - name: default
+
+            - name: redis-slave
+              instances: 2
+              azs: [z1, z2]
+              jobs:
+              - name: redis-server
+                release: redis
+                properties: {}
+              vm_type: medium
+              stemcell: default
+              persistent_disk_type: medium
+              networks:
+              - name: default
+        addons:
+          type: array
+          items:
+            $ref: "#/components/schemas/Addon"
+          description: |
+            Specifies the [addons](https://bosh.io/docs/terminology.md#addon) to be applied to this deployments.
+
+            Unlike addons specified in a runtime config, addons specified in the deployment manifest do not respect inclusion and exclusion rules for `deployments`.
+          example:
+            addons:
+            - name: logging
+              jobs:
+              - name: logging-agent
+                release: logging
+                properties:
+        properties:
+          type: array
+          items:
+            type: object
+            description: >
+              Describes global properties. Deprecated in favor of job level properties and links.
+        variables:
+          type: array
+          items:
+            $ref: "#/components/schemas/Variables"
+          description: >
+            See [CLI Variable Interpolation](https://bosh.io/docs/cli-int.md) for more details about variables.
+          example:
+            variables:
+            - name: admin_password
+              type: password
+            - name: default_ca
+              type: certificate
+              options:
+                is_ca: true
+                common_name: some-ca
+            - name: director_ssl
+              type: certificate
+              options:
+                ca: default_ca
+                common_name: cc.cf.internal
+                alternative_names: [cc.cf.internal]
+        tags:
+          type: object
+          description: >
+            Specifies key value pairs to be sent to the CPI for VM tagging. Combined with runtime config level tags during the deploy. Available in bosh-release v258+.
+          example:
+            tags:
+              project: cf
+
+    Feature:
+      description: >
+        Specifies Director features that should be used within this deployment.
+      example:
+        features:
+          use_dns_addresses: true
+      properties:
+        converge_variables:
+          type: boolean
+          description: >
+            Enable variables to be regenerated by the backend config server
+            (e.g. CredHub) when the variable options change. Default false.
+            Available in bosh-release 267+.
+        randomize_az_placement:
+          type: boolean
+          description: >
+            Randomizes AZs for left over instances that cannot be distributed
+            equally between AZs. For example, given an instance group with 5
+            instances and only 3 AZs, 1 remaining instance will be placed in
+            randomly chosen AZ out of specified 3 AZs. Available in bosh-release
+            264+.
+        use_dns_addresses:
+          type: boolean
+          description: >
+            Enables or disables returning of DNS addresses in links.
+            Defaults to global Director use_dns_addresses configuration.
+
+    Release:
+      required:
+      - name
+      - version
+      properties:
+        name:
+          type: string
+          description: >
+            Name of a release used in the deployment.
+        version:
+          type: string
+          description: >
+            The version of the release to use. Version can be latest.
+        url:
+          type: string
+          description: >
+            URL of a release to download.
+        sha1:
+          type: string
+          description: >
+            SHA1 of asset referenced via URL.
+
+    Stemcell:
+      required:
+      - alias
+      - version
+      properties:
+        alias:
+          type: string
+          description: >
+            Name of a stemcell used in the deployment.
+        os:
+          type: string
+          description: >
+            Operating system of a matching stemcell. Example: ubuntu-trusty.
+        version:
+          type: string
+          description: >
+            The version of a matching stemcell. Version can be latest.
+        name:
+          type: string
+          description: >
+            Full name of a matching stemcell. Either name or os keys can be specified.
+
+    Update:
+      description: >
+        This specifies instance update properties. These properties control how BOSH updates instances during the deployment.
+
+        See [job lifecycle](https://bosh.io/docs/job-lifecycle.md) for more details on startup/shutdown procedure within each VM.
+      required:
+      - canaries
+      - max_in_flight
+      - canary_watch_time
+      - update_watch_time
+      properties:
+        canaries:
+          type: integer
+          description: >
+            The number of [canary](https://bosh.io/docs/terminology.md#canary) instances.
+        max_in_flight:
+          type: string
+          description: >
+            The maximum number of non-canary instances to update in parallel within an availability zone.
+        canary_watch_time:
+          type: string
+          description: |
+            Only applies to monit start operation.
+
+            * If the `canary_watch_time` is an integer, the Director sleeps for that many milliseconds, then checks whether the canary instances are healthy.
+            * If the `canary_watch_time` is a range (low-high), the Director:
+                * Waits for `low` milliseconds
+                * Waits until instances are healthy or `high` milliseconds have passed since instances started updating
+        update_watch_time:
+          type: string
+          description: |
+            Only applies to monit start operation.
+
+            * If the `update_watch_time` is an integer, the Director sleeps for that many milliseconds, then checks whether the instances are healthy.
+            * If the `update_watch_time` is a range (low-high), the Director:
+                * Waits for `low` milliseconds
+                * Waits until instances are healthy or `high` milliseconds have passed since instances started updating
+        serial:
+          type: boolean
+          description: >
+            If disabled (set to `false`), instance groups will be deployed in parallel, otherwise - sequentially. Instances within a group will still follow `canary` and `max_in_flight` configuration. Defaults to `true`.
+        vm_strategy:
+          type: string
+          description: >
+            Influence how instances are updated when their VM needs to be recreated due to IaaS-related changes. Choose from one of the following strategies. Defaults to `delete-create`. Introduced in [bosh/267.2](https://github.com/cloudfoundry/bosh/releases/tag/v267.2).
+                * `delete-create` - fully stop processes and delete the VM before creating and provisioning a new VM.
+                * `create-swap-delete` - create and provision a new VM before stopping processes and transferring responsibilities from the old VM. Some configurations (e.g. static IPs) are not supported and will automatically revert to the `delete-create` strategy.
+
+      example:
+        update:
+          canaries: 1
+          max_in_flight: 10
+          canary_watch_time: 1000-30000
+          update_watch_time: 1000-30000
+
+    AddonJob:
+      description: >
+        Specifies the name and release of release jobs to be colocated.
+      required:
+      - name
+      - release
+      properties:
+        name:
+          type: string
+          description: >
+            The job name
+        release:
+          type: string
+          description: >
+            The release where the job exists
+        properties:
+          type: object
+          description: >
+            Specifies job properties. Properties allow the Director to configure jobs to a specific environment.
+
+    Job:
+      required:
+      - name
+      - release
+      properties:
+        name:
+          type: string
+          description: >
+            The job name
+        release:
+          type: string
+          description: >
+            The release where the job exists
+        consumes:
+          type: object
+          description: >
+            Links consumed by the job.
+            [Read more about link configuration](https://bosh.io/docs/links/#deployment)
+        provides:
+          type: object
+          description: >
+            Links provided by the job.
+            [Read more about link configuration](https://bosh.io/docs/links/#deployment)
+        properties:
+          type: object
+          description: >
+            Specifies job properties. Properties allow BOSH to configure jobs to a
+            specific environment. `properties` defined in a Job block are
+            accessible only to that job. Only properties specified here will be
+            provided to the job.
+
+    VMResources:
+      required:
+        - type
+        - ram
+        - ephemeral_disk_size
+      properties:
+        cpu:
+          type: integer
+          description: >
+            Number of CPUs.
+        ram:
+          type: integer
+          description: >
+            Amount of RAM in MB.
+        ephemeral_disk_size:
+          type: integer
+          description: >
+            Ephemeral disk size in MB.
+
+    Network:
+      required:
+      - name
+      properties:
+        name:
+          type: string
+          description: >
+            A valid network name from the cloud config.
+        static_ips:
+          type: array
+          items:
+            type: string
+          description: >
+            Array of IP addresses reserved for the instances on the network.
+        default:
+          type: array
+          items:
+            type: string
+          description: >
+            Specifies which network components (DNS, Gateway) BOSH populates by
+            default from this network. This property is required if more than one
+            network is specified.
+
+    AgentEnv:
+      properties:
+        persistent_disk_fs:
+          type: string
+          description: >
+            Filesystem type to use when formatting persistent disk. Supported
+            values: ext4, xfs. Default is currently set to ext4 but may change.
+            See details.
+        persistent_disk_mount_options:
+          type: array
+          items:
+            type: string
+          description: >
+            Mount options when mounting persistent disk. Example: ["noatime"].
+        bosh:
+          $ref: "#/components/schemas/AgentEnvBOSHConfig"
+
+    AgentEnvBOSHConfig:
+      properties:
+        password:
+          type: string
+          description: >
+            Crypted password for vcap/root user (will be placed into /etc/shadow on
+            Linux).
+        keep_root_password:
+          type: boolean
+          description: >
+            Keep password for root and only change password for vcap.
+            Default: false.
+        remove_dev_tools:
+          type: boolean
+          description: >
+            Remove compilers and dev tools on non-compilation VMs.
+            Default: false.
+        remove_static_libraries:
+            type: boolean
+            description: >
+              Remove static libraries on non-compilation VMs.
+              Default: false.
+        swap_size:
+            type: integer
+            description: >
+              Size of swap partition in MB to create. Set this to 0 to avoid
+              having a swap partition created.
+              Default: RAM size of used VM type up to half of the ephemeral
+              disk size.
+        ipv6:
+          type: object
+          properties:
+            enable:
+              type: boolean
+              description: >
+                Force IPv6 enabled in kernel (this configuration is not necessary
+                if one of the VM addresses is IPv6). Default: false.
+
+    MigratedFrom:
+      required:
+      - name
+      properties:
+        name:
+          type: string
+          description: >
+            Name of an instance group that used to exist in the manifest.
+        az:
+          type: string
+          description: >
+            Availability zone that was used for the named instance group. This key
+            is optional for instance groups that used first class AZs (via `azs`
+            key). If first class AZ was not used, then this key must specify first
+            class AZ that matches actual IaaS AZ configuration.
+
+    InstanceGroup:
+      required:
+      - name
+      - azs
+      - instances
+      - jobs
+      - vm_type
+      - stemcell
+      - networks
+      properties:
+        name:
+          type: string
+          description: >
+            A unique name used to identify and reference instance group.
+        azs:
+          type: array
+          items:
+            type: string
+          description: >
+            List of AZs associated with this instance group (should only be used
+            when using first class AZs). Example: [z1, z2].
+        instances:
+          type: integer
+          description: >
+            The number of instances in this group. Each instance is a VM.
+        jobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/Job"
+          description: >
+            Specifies the name and release of jobs that will be installed on each
+            instance.
+        vm_type:
+          type: string
+          description: >
+            A valid VM type name from the cloud config. Alternatively you can
+            specify vm_resources key.
+        vm_extensions:
+          type: array
+          items:
+            type: string
+          description: >
+            A valid list of VM extension names from the cloud config.
+        vm_resources:
+          allOf:
+          - $ref: "#/components/schemas/VMResources"
+          description: >
+            Specifies generic VM resources such as CPU, RAM and disk size that
+            are automatically translated into correct VM cloud properties to
+            determine VM size. VM size is determined on best effort basis as some
+            IaaSes may not support exact size configuration. Currently some CPIs
+            (Google) do not support this functionality. Available in bosh-release
+            v264+.
+        stemcell:
+          type: string
+          description: >
+            A valid stemcell alias from the Stemcells Block.
+        persistent_disk:
+          type: integer
+          description: >
+            Persistent disk size in MB. Alternatively you can specify persistent_disk_type key. Read more about persistent disks
+        persistent_disk_type:
+          type: string
+          description: >
+            A valid disk type name from the cloud config. Read more about persistent disks
+        networks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Network"
+          description: >
+            Specifies the networks this instance requires.
+        update:
+          allOf:
+          - $ref: "#/components/schemas/Update"
+          description: >
+            Specific update settings for this instance group. Use this to override
+            global job update settings on a per-instance-group basis.
+        migrated_from:
+          allOf:
+          - $ref: "#/components/schemas/MigratedFrom"
+          description: >
+            Specific migration settings for this instance group.
+            Use this to [rename and/or migrate instance groups.](https://bosh.io/docs/migrated-from/)
+        lifecycle:
+          type: string
+          description: >
+            Specifies the kind of workload the instance group represents. Valid
+            values are `service` and `errand`; defaults to `service`. A `service`
+            runs indefinitely and restarts if it fails. An `errand` starts with a
+            manual trigger and does not restart if it fails.
+        properties:
+          type: object
+          description: >
+            Specifies instance group properties. Deprecated in favor of job level
+            properties and links.
+        env:
+          allOf:
+          - $ref: "#/components/schemas/AgentEnv"
+          description: >
+            Specifies advanced BOSH Agent configuration for each instance in the
+            group.
+
+    Addon:
+      required:
+      - name
+      - jobs
+      properties:
+        name:
+          type: string
+          description: >
+            A unique name used to identify and reference the addon.
+        jobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/AddonJob"
+          description: >
+            Specifies the name and release of release jobs to be colocated.
+
+    Variables:
+      required:
+      - name
+      - type
+      properties:
+        name:
+          type: string
+          description: >
+            Unique name used to identify a variable. Example: `admin_password`
+        type:
+          type: string
+          description: >
+            Type of a variable. Currently supported variable types are `certificate`, `password`, `rsa`, and `ssh`. Example: `password`.
+        options:
+          type: object
+          description: >
+            Specifies generation options used for generating variable value if variable is not found.
+          example: {is_ca: true, common_name: some-ca}
