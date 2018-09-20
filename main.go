@@ -5,74 +5,90 @@ import (
 	"io/ioutil"
 	"os"
 
-	wraperr "github.com/pkg/errors"
+	"github.com/manno/kin-openapi/openapi3"
 	yaml "gopkg.in/yaml.v2"
-
-	"github.com/go-openapi/errors"
-	"github.com/go-openapi/loads"
-	"github.com/go-openapi/spec"
-	"github.com/go-openapi/strfmt"
-	"github.com/go-openapi/validate"
 )
 
-// func init() {
-//         loads.AddLoader(fmts.YAMLMatcher, fmts.YAMLDoc)
-// }
-
-func loadSpec(fpath string) (*loads.Document, error) {
-	document, err := loads.Spec(fpath)
+func loadSpec(path string) (*openapi3.Swagger, error) {
+	fmt.Printf("loading spec from: %s\n", path)
+	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		return nil, wraperr.Wrap(err, "Failed to load spec")
+		return nil, err
 	}
 
-	document, err = document.Expanded(&spec.ExpandOptions{RelativeBase: fpath})
+	loader := openapi3.NewSwaggerLoader()
+	doc, err := loader.LoadSwaggerFromYAMLData(data)
 	if err != nil {
-		return nil, wraperr.Wrap(err, "Failed to expand spec")
+		return nil, fmt.Errorf("failed to load spec: %s", err)
 	}
 
-	if err := validate.Spec(document, strfmt.Default); err != nil {
-		return nil, wraperr.Wrap(err, "Spec is invalid")
+	fmt.Printf("loaded: %s\n", doc.Info.Title)
+
+	err = doc.Validate(loader.Context)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate spec: %s", err)
 	}
 
-	return document, nil
+	return doc, nil
 }
 
-func loadYAML(fpath string) (interface{}, error) {
-	var data interface{}
+func loadYAML(path string) (data []byte, err error) {
+	fmt.Printf("loading doc from: %s\n", path)
 
-	manifestContents, err := ioutil.ReadFile(fpath)
-	if err != nil {
-		return data, err
+	data, err = ioutil.ReadFile(path)
+	return
+}
+
+// kin-openapi does not support map[interface{}]interface{}
+// https://stackoverflow.com/questions/40737122/convert-yaml-to-json-without-struct?answertab=votes#tab-top
+func convert(i interface{}) interface{} {
+	switch x := i.(type) {
+	case map[interface{}]interface{}:
+		m2 := map[string]interface{}{}
+		for k, v := range x {
+			m2[k.(string)] = convert(v)
+		}
+		return m2
+	case []interface{}:
+		for i, v := range x {
+			x[i] = convert(v)
+		}
 	}
-
-	if err := yaml.Unmarshal(manifestContents, data); err != nil {
-		return data, err
-	}
-
-	return data, nil
+	return i
 }
 
 func main() {
 	fpath := os.Args[1]
 
-	document, err := loadSpec(fpath)
+	spec, err := loadSpec(fpath)
 	if err != nil {
 		panic(err)
+	}
+
+	schema := spec.Components.Schemas["DeploymentManifest"]
+	if schema == nil {
+		for k, _ := range spec.Components.Schemas {
+			fmt.Printf("found schema: %s\n", k)
+		}
+		panic("failed to find BOSH schema: DeploymentManifest")
 	}
 
 	data, err := loadYAML(os.Args[2])
 	if err != nil {
-		panic(err)
+		panic(fmt.Errorf("failed to load yaml: %s", err))
 	}
 
-	sch := document.Schema()
-	err = validate.AgainstSchema(sch, data, strfmt.Default)
-	ve, ok := err.(*errors.CompositeError)
-	if ok {
-		fmt.Printf("validation ok\n")
-		os.Exit(0)
+	var manifest interface{}
+	if err := yaml.Unmarshal(data, &manifest); err != nil {
+		panic(fmt.Errorf("failed to jsonize manifest: %s", err))
 	}
-	fmt.Printf("validation failed\n")
-	fmt.Printf("%#v\n", ve)
-	os.Exit(1)
+
+	err = schema.Value.VisitJSON(convert(manifest))
+	if v, ok := err.(*openapi3.SchemaError); ok {
+		text, _ := yaml.Marshal(v.Value)
+		fmt.Println(string(text))
+		fmt.Printf("failed on field '%s': %s\n", v.SchemaField, v.Reason)
+		os.Exit(1)
+	}
+	fmt.Println("validation: ok")
 }
