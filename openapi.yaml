@@ -53,9 +53,8 @@ components:
           items:
             allOf:
             - $ref: "#/components/schemas/Stemcell"
-              required:
-              - alias
-              - version
+          required:
+          - alias
           description:
             The `url` key is not supported in stemcells block because there is no single stemcell that works on all IaaSes. Since we want to keep deployment manifests decoupled from any cloud specific declarations we do not allow specifying URL.
           example:
@@ -179,11 +178,6 @@ components:
           description: >
             Enables or disables returning of DNS addresses in links.
             Defaults to global Director use_dns_addresses configuration.
-        use_tmpfs_job_config:
-          type: boolean
-          decription: >
-            Mounts all directories which contain rendered job templates on tmpfs
-            by default on every instance group. Default false.
 
     Release:
       required:
@@ -207,8 +201,17 @@ components:
           description: >
             SHA1 of asset referenced via URL.
         stemcell:
+          allOf:
+          - $ref: "#/components/schemas/Stemcell"
+          required:
+          - os
+          description: >
+           Stemcell for which the release is compiled (recommended for
+           compiled releases).
 
     Stemcell:
+      required:
+      - version
       properties:
         alias:
           type: string
@@ -427,8 +430,30 @@ components:
             enable:
               type: boolean
               description: >
-                Force IPv6 enabled in kernel (this configuration is not necessary
-                if one of the VM addresses is IPv6). Default: false.
+                Force IPv6 enabled in kernel (this configuration is not
+                necessary if one of the VM addresses is IPv6). Default: false.
+        job_dir:
+          type: object
+          properties:
+            tmpfs:
+              type: boolean
+              description: >
+                Mount all directories which contain rendered job templates on
+                tmpfs. Default: false.
+            tmpfs_size:
+              type: string
+              description: >
+                The size of the tmpfs mount. Accepted values are a number of
+                bytes or a number with a suffix e.g. 64m or 1g. Default: 100m.
+        agent:
+          type: object
+          properties:
+            settings:
+              type: string
+            tmpfs:
+              type: boolean
+              description: >
+                Mount agent settings on a tmpfs directory. Default: false.
 
     MigratedFrom:
       required:
@@ -563,6 +588,14 @@ components:
             $ref: "#/components/schemas/AddonJob"
           description: >
             Specifies the name and release of release jobs to be colocated.
+        include:
+          type: string
+          description: >
+            Specifies inclusion placement rules Available in bosh-release v260+.
+        exclude:
+          type: string
+          description: >
+            Specifies exclusion placement rules. Available in bosh-release v260+.
 
     Variables:
       required:

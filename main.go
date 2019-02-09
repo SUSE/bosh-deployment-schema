@@ -87,6 +87,7 @@ func main() {
 	if v, ok := err.(*openapi3.SchemaError); ok {
 		text, _ := yaml.Marshal(v.Value)
 		fmt.Println(string(text))
+		fmt.Println(v)
 		fmt.Printf("failed on field '%s': %s\n", v.SchemaField, v.Reason)
 		os.Exit(1)
 	}
