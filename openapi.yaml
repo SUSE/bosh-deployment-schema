@@ -175,6 +175,11 @@ components:
           description: >
             Enables or disables returning of DNS addresses in links.
             Defaults to global Director use_dns_addresses configuration.
+        use_tmpfs_job_config:
+          type: boolean
+          decription: >
+            Mounts all directories which contain rendered job templates on tmpfs
+            by default on every instance group. Default false.
 
     Release:
       required:
