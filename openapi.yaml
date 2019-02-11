@@ -669,11 +669,9 @@ components:
           description: >
             Specifies generation options used for generating variable value if variable is not found.
           example: {is_ca: true, common_name: some-ca}
-          
+
     Tags:
       type: object
       description: >
         Specifies key value pairs to be sent to the CPI for VM tagging. Combined with runtime config level tags during the deploy.
         Available in bosh-release v258+.
-
-
