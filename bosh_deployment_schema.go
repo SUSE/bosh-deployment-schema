@@ -1,4 +1,4 @@
-package main
+package bosh_deployment_schema
 
 import (
 	"fmt"
