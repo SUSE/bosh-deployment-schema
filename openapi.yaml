@@ -53,8 +53,6 @@ components:
           items:
             allOf:
             - $ref: "#/components/schemas/Stemcell"
-          required:
-          - alias
           description:
             The `url` key is not supported in stemcells block because there is no single stemcell that works on all IaaSes. Since we want to keep deployment manifests decoupled from any cloud specific declarations we do not allow specifying URL.
           example:
@@ -201,16 +199,26 @@ components:
           description: >
             SHA1 of asset referenced via URL.
         stemcell:
-          allOf:
-          - $ref: "#/components/schemas/Stemcell"
+          type: object
+          description: >
+            Stemcell for which the release is compiled (recommended for compiled
+            releases).
           required:
           - os
-          description: >
-           Stemcell for which the release is compiled (recommended for
-           compiled releases).
+          - version
+          properties:
+            os:
+              type: string
+              description: >
+                Operating system of the stemcell. Example: ubuntu-xenial.
+            version:
+              type: string
+              description: >
+                Version of the stemcell. Example: 97.18.
 
     Stemcell:
       required:
+      - alias
       - version
       properties:
         alias:
