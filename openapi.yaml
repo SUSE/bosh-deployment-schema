@@ -64,6 +64,15 @@ components:
               version: 3149
         update:
           $ref: "#/components/schemas/Update"
+          description: >
+            This specifies instance update properties. These properties control how BOSH updates instances during the deployment.
+
+            See [job lifecycle](https://bosh.io/docs/job-lifecycle.md) for more details on startup/shutdown procedure within each VM.
+          required:
+          - canaries
+          - max_in_flight
+          - canary_watch_time
+          - update_watch_time
         instance_groups:
           type: array
           items:
@@ -238,15 +247,6 @@ components:
             Full name of a matching stemcell. Either name or os keys can be specified.
 
     Update:
-      description: >
-        This specifies instance update properties. These properties control how BOSH updates instances during the deployment.
-
-        See [job lifecycle](https://bosh.io/docs/job-lifecycle.md) for more details on startup/shutdown procedure within each VM.
-      required:
-      - canaries
-      - max_in_flight
-      - canary_watch_time
-      - update_watch_time
       properties:
         canaries:
           type: integer
