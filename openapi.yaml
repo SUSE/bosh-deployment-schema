@@ -197,6 +197,23 @@ components:
           type: string
           description: >
             SHA1 of asset referenced via URL.
+        stemcell:
+          type: object
+          description: >
+            Stemcell for which the release is compiled (recommended for compiled
+            releases).
+          required:
+          - os
+          - version
+          properties:
+            os:
+              type: string
+              description: >
+                Operating system of the stemcell. Example: ubuntu-xenial.
+            version:
+              type: string
+              description: >
+                Version of the stemcell. Example: 97.18.
 
     Stemcell:
       required:
@@ -294,6 +311,62 @@ components:
           type: object
           description: >
             Specifies job properties. Properties allow the Director to configure jobs to a specific environment.
+
+    AddonPlacementRules:
+      description: >
+        Specifies inclusion and exclusion placement rules Available in
+        bosh-release v260+.
+      properties:
+        stemcell:
+          type: array
+          items:
+            required:
+            - os
+            properties:
+              os:
+                type: string
+                description: >
+                  Matches stemcell's operating system. Example: ubuntu-trusty.
+        deployments:
+          type: array
+          items:
+            type: string
+          description: >
+            Matches based on deployment names.
+        jobs:
+          type: array
+          items:
+            required:
+            - name
+            - release
+            properties:
+              name:
+                type: string
+                description: >
+                  Matching job name.
+              release:
+                type: string
+                description: >
+                  Matching release name.
+        instance_groups:
+          type: array
+          items:
+            type: string
+          description: >
+            Matches based on instance group names.
+        networks:
+          type: array
+          items:
+            type: string
+          description: >
+             Matches based on network names. Available in bosh-release v262+.
+        teams:
+          type: array
+          items:
+            type: string
+          description: >
+            Matches based on team names. Available in bosh-release v253+.
+
 
     Job:
       required:
@@ -420,8 +493,30 @@ components:
             enable:
               type: boolean
               description: >
-                Force IPv6 enabled in kernel (this configuration is not necessary
-                if one of the VM addresses is IPv6). Default: false.
+                Force IPv6 enabled in kernel (this configuration is not
+                necessary if one of the VM addresses is IPv6). Default: false.
+        job_dir:
+          type: object
+          properties:
+            tmpfs:
+              type: boolean
+              description: >
+                Mount all directories which contain rendered job templates on
+                tmpfs. Default: false.
+            tmpfs_size:
+              type: string
+              description: >
+                The size of the tmpfs mount. Accepted values are a number of
+                bytes or a number with a suffix e.g. 64m or 1g. Default: 100m.
+        agent:
+          type: object
+          properties:
+            settings:
+              type: string
+            tmpfs:
+              type: boolean
+              description: >
+                Mount agent settings on a tmpfs directory. Default: false.
 
     MigratedFrom:
       required:
@@ -556,6 +651,12 @@ components:
             $ref: "#/components/schemas/AddonJob"
           description: >
             Specifies the name and release of release jobs to be colocated.
+        include:
+          allOf:
+          - $ref: "#/components/schemas/AddonPlacementRules"
+        exclude:
+          allOf:
+          - $ref: "#/components/schemas/AddonPlacementRules"
 
     Variables:
       required:
@@ -575,3 +676,9 @@ components:
           description: >
             Specifies generation options used for generating variable value if variable is not found.
           example: {is_ca: true, common_name: some-ca}
+
+    Tags:
+      type: object
+      description: >
+        Specifies key value pairs to be sent to the CPI for VM tagging. Combined with runtime config level tags during the deploy.
+        Available in bosh-release v258+.
